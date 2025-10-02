@@ -1,6 +1,6 @@
 require("dotenv").config();
 const express = require("express");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 const cors = require("cors");
 
 const app = express();
@@ -14,14 +14,8 @@ app.use(cors({
 
 app.use(express.json());
 
-// Gmail transporter
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+// Resend configuration
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Test route
 app.get("/", (req, res) => {
@@ -55,10 +49,14 @@ app.post("/send-email", async (req, res) => {
     // Verify reCAPTCHA (only if secret key is provided)
     if (process.env.RECAPTCHA_SECRET_KEY && token) {
       console.log("Verifying reCAPTCHA...");
-      const verifyURL = `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${token}`;
       
-      const captchaResponse = await fetch(verifyURL, { method: "POST" });
-      const captchaData = await captchaResponse.json();
+      const verifyResponse = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${token}`
+      });
+      
+      const captchaData = await verifyResponse.json();
 
       console.log("reCAPTCHA verification result:", captchaData);
 
@@ -70,14 +68,13 @@ app.post("/send-email", async (req, res) => {
       }
     }
 
-    // Send email
+    // Send email using Resend
     console.log("Sending email...");
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER, // Must be your authenticated email
-      to: process.env.EMAIL_USER, // Your inbox
-      replyTo: email, // User's email for easy reply
+    await resend.emails.send({
+      from: "onboarding@resend.dev", // Free tier sender (or use your verified domain)
+      to: process.env.EMAIL_USER || "haseebquotex1021@gmail.com", // Your inbox
+      reply_to: email, // User's email for easy reply
       subject: `New Contact Form Message from ${email}`,
-      text: `You received a new message from your portfolio contact form:\n\nFrom: ${email}\n\nMessage:\n${message}`,
       html: `
         <h2>New Contact Form Submission</h2>
         <p><strong>From:</strong> ${email}</p>
@@ -109,6 +106,6 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`Environment check:`);
   console.log(`- EMAIL_USER: ${process.env.EMAIL_USER ? "✓" : "✗"}`);
-  console.log(`- EMAIL_PASS: ${process.env.EMAIL_PASS ? "✓" : "✗"}`);
+  console.log(`- RESEND_API_KEY: ${process.env.RESEND_API_KEY ? "✓" : "✗"}`);
   console.log(`- RECAPTCHA_SECRET_KEY: ${process.env.RECAPTCHA_SECRET_KEY ? "✓" : "✗"}`);
 });
