@@ -16,13 +16,24 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Contact form API
 app.post("/send-email", async (req, res) => {
-  const { email, message } = req.body;
+  const { email, message, token } = req.body;
 
   try {
+    // ✅ Verify reCAPTCHA
+    const verifyURL = `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${token}`;
+    const captchaResponse = await fetch(verifyURL, { method: "POST" });
+    const captchaData = await captchaResponse.json();
+
+    if (!captchaData.success) {
+      return res.status(400).json({ success: false, error: "Captcha verification failed" });
+    }
+
+    // ✅ Send email
     await transporter.sendMail({
       from: email,
-      to: process.env.EMAIL_USER, // your inbox
+      to: process.env.EMAIL_USER,
       subject: `New message from ${email}`,
       text: message,
     });
@@ -34,6 +45,7 @@ app.post("/send-email", async (req, res) => {
   }
 });
 
+// Server listen
 app.listen(process.env.PORT || 5000, () =>
-  console.log(`Server running on http://localhost:${process.env.PORT || 5000}`)
+  console.log(`🚀 Server running on http://localhost:${process.env.PORT || 5000}`)
 );
